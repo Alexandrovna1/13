@@ -1,0 +1,1089 @@
+unit Pole_igri;
+
+{$mode ObjFPC}{$H+}
+
+interface
+
+uses
+  Buttons,
+  Classes,
+  Controls,
+  Dialogs,
+  ExtCtrls,
+  Forms,
+  Graphics,
+  Menus,
+  StdCtrls,
+  SysUtils,
+  Windows;
+
+type
+  mas = array[-1..10,-1..10]of integer;
+  rmas = array[0..9,0..9]of real;
+  { TEkran_Igri }
+
+  TEkran_Igri = class(TForm)
+    Nachat_igru_v_rastanovke: TBitBtn;
+    Rastavit_Zanovo: TBitBtn;
+    Novaya_igra_v_konce: TButton;
+    Nazad_na_GlavEkr: TButton;
+    Zavershit_igru: TButton;
+    Pole_Komputera: TImage;
+    Label2: TLabel;
+    N1: TMenuItem;
+    N2: TMenuItem;
+    N8: TMenuItem;
+    Pole_Igroka: TImage;
+    Vash_Hod: TLabel;
+    Komputer_name: TLabel;
+    Panel_s_Korablyami: TPanel;
+    Panel_Rasstanovki: TPanel;
+    Obozn_kletok: TPanel;
+    Panel_s_Vash_Hod: TPanel;
+    Igrok_name: TLabel;
+    MainMenu1: TMainMenu;
+    N4: TMenuItem;
+    N7: TMenuItem;
+    N9: TMenuItem;
+    Panel_s_obozn: TPanel;
+    Panel_s_Raspologeniem: TPanel;
+    Panel5: TPanel;
+    pnLegend: TPanel;
+    rb2: TRadioButton;
+    rb3: TRadioButton;
+    rb4: TRadioButton;
+    Vibor_Vertek: TRadioButton;
+    Vibor_Gorizont: TRadioButton;
+    rb1: TRadioButton;
+    Obozn_korabla: TShape;
+    Obozn_mimo1: TShape;
+    Obozn_mimo2: TShape;
+    Obozn_podbit: TShape;
+    Obozn_unichtogen: TShape;
+    Gorizont: TShape;
+    Vertek: TShape;
+    mimo: TStaticText;
+    podbit: TStaticText;
+    unichtojen: TStaticText;
+    korabl: TStaticText;
+    procedure Novaya_igra_v_konceClick(Sender: TObject);
+    procedure Nazad_na_GlavEkrClick(Sender: TObject);
+    procedure Zavershit_igruClick(Sender: TObject);
+    procedure FormActivate(Sender: TObject);
+    procedure Pole_IgrokaMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure bbReClick(Sender: TObject);
+    procedure Nachat_igru_v_rastanovkeClick(Sender: TObject);
+    procedure Pole_KomputeraMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure N8Click(Sender: TObject);
+    procedure N2Click(Sender: TObject);
+  private
+
+  public
+
+  end;
+
+var
+  Ekran_Igri: TEkran_Igri;
+  A,B,C:mas; // A- сетка игрока; B- сетка компьютера; C- атака компьютера;
+  D:rmas;
+  Sh,Ch,ds:array[1..4]of integer;
+  p,strg:integer;
+  flag,nol:boolean;
+  ds1,ds2:integer; // кол-во баллов игрока и компьютера
+  State:integer;
+  y,z,napr,o,pp,kp:integer;
+  S:Set of byte;
+  wh,kl:integer; // kl- клетки wh- длина
+  cKill,cPodbit,cSetka,cMore,cKorabl:integer;
+implementation
+ uses Glavn_ekr;
+{$R *.lfm}
+
+procedure InitMas(var A,B,C:mas);  // Обнуление массивов
+var i,j:integer; // i- высота j- длина
+begin
+  for i:=-1 to 10 do
+    for j:=-1 to 10 do
+      begin
+        A[i,j]:=0; // A- сетка игрока
+        B[i,j]:=0; // B- сетка компьютера
+        C[i,j]:=0; // C- атака компьютера
+      end;
+  for i:=1 to 4 do
+    begin
+      Sh[i]:=5-i;
+      Ch[i]:=5-i;
+      Ds[i]:=5-i;
+    end;
+  p:=0;
+  For j:=-1 to 10 do
+    begin
+      C[-1,j]:=-5;
+      C[j,-1]:=-5;
+    end;
+end;
+function check1(k,l,d,b:integer;A:mas):boolean;
+var f:boolean;
+    i,j:integer; // i- высота j- длина
+begin
+  f:=TRUE;
+  Case b of
+    1:begin
+        f:=True;
+        i:=k-1;
+        while f and (i<=k+d+1) do
+          begin
+            j:=l-1;
+            while f and (j<=l+1) do
+              begin
+                f:=(A[j,i]=0);
+                j:=j+1;
+              end;
+            i:=i+1;
+          end;
+      end;
+    2:begin
+        f:=True;
+        j:=l-1;
+        while f and (j<=l+d+1) do
+          begin
+            i:=k-1;
+            while f and (i<=k+1) do
+              begin
+                f:=(A[j,i]=0);
+                i:=i+1;
+              end;
+            j:=j+1;
+          end;
+      end;
+  end;
+  check1:=f;
+end;
+function check2(k,l,d,b:integer):boolean;
+var f:boolean;
+begin
+  f:=TRUE;
+  Case b of
+    1:f:=(k+d<=9);
+    2:f:=(l+d<=9);
+  end;
+  check2:=f;
+end;
+function check3(d:integer):boolean;
+begin
+  check3:=(Sh[d+1]>0);
+end;
+procedure GetB(var B:mas);   // авто расстановка кораблей
+var k,l,i,t,p:integer;  // k- длина поля,l- высота поля,i- высота,p- поле
+    f1,f2,f3,f4:boolean;  // кол-во кораблей
+begin
+  Randomize;
+  f4:=False;
+// расстановка 1-ого корябля(4 шт)
+  repeat
+    k:=Random(10); // длина поля
+    l:=Random(10); // высота поля
+    p:=Random(2)+1; // поле
+    if check1(k,l,3,p,B) and check2(k,l,3,p) then
+        begin
+          Case p of  // обозначение на поле
+            1: for t:=k to k+3 do B[l,t]:=4;
+            2: for t:=l to l+3 do B[t,k]:=4;
+          end;
+          dec(Ch[4]);
+          f4:=True;
+        end;
+  until f4;
+  // расстановка 2-ого корабля(3 шт)
+  for i:=1 to 2 do
+    begin
+      f3:=False; // расстановка 2-ого корабля(f3 - 3 шт)
+      Repeat
+        k:=Random(10); // длина поля
+        l:=Random(10); // высота поля
+        p:=Random(2)+1; // поле
+        if check1(k,l,2,p,B)and check2(k,l,2,p)
+           then
+            begin
+              Case p of  // обозначение на поле
+                1: for t:=k to k+2 do B[l,t]:=3;
+                2: for t:=l to l+2 do B[t,k]:=3;
+              end;
+              dec(Ch[3]);
+              f3:=True;
+            end;
+      until f3;
+    end;
+    // расстановка 3-ого корабля(2 шт)
+    for i:=1 to 3 do
+    begin
+      f2:=False;
+      Repeat
+        k:=Random(10); // длина поля
+        l:=Random(10); // высота поля
+        p:=Random(2)+1; // поле
+        if check1(k,l,1,p,B)and check2(k,l,1,p) then
+            begin
+              Case p of // обозначение на поле
+                1: for t:=k to k+1 do B[l,t]:=2;
+                2: for t:=l to l+1 do B[t,k]:=2;
+              end;
+              dec(Ch[2]);
+              f2:=True;
+            end;
+      until f2;
+    end;
+    // расстановка 4-ого корабля(1 шт)
+  for i:=1 to 4 do
+    begin
+      f1:=False;
+      Repeat
+        k:=Random(10); // длина поля
+        l:=Random(10); // высота поля
+        p:=Random(2)+1; // поле
+        if check1(k,l,0,p,B) and check2(k,l,0,p) then
+            begin
+              Case p of  // обозначение на поле
+                1: B[l,k]:=1;
+                2: B[l,k]:=1;
+              end;
+              dec(Ch[1]);
+              f1:=True;
+            end;
+      until f1;
+    end;
+end;
+function mru(k,l:integer;B:mas):integer;  // Проверка на существование коробля по кардинату
+begin
+  if (B[l,k]<=0) then mru:=0; // корабля нет
+  if (B[l,k]>0) then mru:=1;  // корабль есть
+end;
+procedure FindDead(d:integer; B:mas; Pole_Komputera:TImage);   // Поиск унечтоженного корабля
+var i,j,k,l,t,p:integer; // i- высота j- длина, k- длина поля,l- высота поля ,p- поле
+    f1,f:boolean;
+begin
+  f1:=True;
+   for l:=0 to 9 do
+     begin
+       for k:=0 to 9-d+1 do
+         begin
+           if (B[l,k]=-d-1) then
+               begin
+                 f:=True;
+                 for t:=k+1 to k+d do
+                   if B[l,t]<>-d-1 then f:=False;
+                 f1:=f;
+                 if f1 then
+                     begin
+                       for i:=k*kl+1 to (k+d)*kl+kl-1 do
+                         for j:=l*kl+1 to l*kl+kl-1 do
+                           if Pole_Komputera.Canvas.Pixels[i,j]<>cSetka then Pole_Komputera.Canvas.Pixels[i,j]:=cKill;
+                       for t:=k to k+d do B[l,t]:=0;
+
+                       t:=k-1;
+                       for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                         for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+                           Pole_Komputera.Canvas.Pixels[i,j]:=cKorabl;
+                       B[l,t]:=-5;
+                       t:=k+d+1;
+                       for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                         for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+                           Pole_Komputera.Canvas.Pixels[i,j]:=cKorabl;
+                       B[l,t]:=-5;
+                       for t:=k-1 to k+1+d do
+                         begin
+                           p:=l-1;
+                           for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                             for j:=(((p*kl+1)+(p*kl+kl-1))div 2)-2 to(((p*kl+1)+(p*kl+kl-1))div 2)+2 do
+                               Pole_Komputera.Canvas.Pixels[i,j]:=cKorabl;
+                           B[p,t]:=-5;
+                           p:=l+1;
+                           for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                             for j:=(((p*kl+1)+(p*kl+kl-1))div 2)-2 to(((p*kl+1)+(p*kl+kl-1))div 2)+2 do
+                               Pole_Komputera.Canvas.Pixels[i,j]:=cKorabl;
+                           B[p,t]:=-5;
+                         end;
+                     end;
+               end;
+
+                 if (B[k,l]=-d-1) then
+               begin
+                 f:=True;
+                 for t:=k+1 to k+d do
+                   if B[t,l]<>-d-1 then f:=False;
+                 f1:=f;
+                 if f1 then
+                     begin
+                       for i:=k*kl+1 to (k+d)*kl+kl-1 do
+                         for j:=l*kl+1 to l*kl+kl-1 do
+                           if Pole_Komputera.Canvas.Pixels[j,i]<>cSetka then Pole_Komputera.Canvas.Pixels[j,i]:=cKill;
+                       for t:=k to k+d do B[t,l]:=0;
+
+                       t:=k-1;
+                       for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                         for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+                           Pole_Komputera.Canvas.Pixels[j,i]:=cKorabl;
+
+                       B[l,t]:=-5;
+                       t:=k+d+1;
+                       for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                         for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+                           Pole_Komputera.Canvas.Pixels[j,i]:=cKorabl;
+                       B[l,t]:=-5;
+                       for t:=k-1 to k+1+d do
+                         begin
+                           p:=l-1;
+                           for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                             for j:=(((p*kl+1)+(p*kl+kl-1))div 2)-2 to(((p*kl+1)+(p*kl+kl-1))div 2)+2 do
+                               Pole_Komputera.Canvas.Pixels[j,i]:=cKorabl;
+
+                           B[p,t]:=-5;
+                           p:=l+1;
+                           for i:=(((t*kl+1)+(t*kl+kl-1))div 2)-2 to(((t*kl+1)+(t*kl+kl-1))div 2)+2 do
+                             for j:=(((p*kl+1)+(p*kl+kl-1))div 2)-2 to(((p*kl+1)+(p*kl+kl-1))div 2)+2 do
+                               Pole_Komputera.Canvas.Pixels[j,i]:=cKorabl;
+                           B[p,t]:=-5;
+                         end;
+                     end;
+               end;
+         end;
+     end;
+end;
+function Gen:integer;
+var i:integer;
+begin
+  For i:=1 to 4 do
+    If Ds[i]>0 then Gen:=i;
+end;
+function CanBe(l,k:integer):boolean;
+var f1,f2,f3:boolean;
+    i,j:integer; // i- высота j- длина
+begin
+  f1:=False;
+  f2:=False;
+  i:=k-Gen+1;
+  While (i<=k) and not f1 do
+    begin
+      f3:=True;
+      j:=i;
+      While (j<=i+Gen-1) and f3 do
+        if C[l,j]<>0 then f3:=False else j:=j+1;
+      f1:=f3;
+      i:=i+1;
+    end;
+  i:=l-Gen+1;
+  While (i<=l) and not f2 do
+    begin
+      f3:=True;
+      j:=i;
+      While (j<=i+Gen-1) and f3 do
+        if C[j,k]<>0 then f3:=False else j:=j+1;
+      f2:=f3;
+      i:=i+1;
+    end;
+  CanBe:=f1 or f2;
+end;
+function Free(l,k:integer):boolean;  // Проверка на пустую клетку
+begin
+  Free:=(C[l,k]=0);
+end;
+Procedure PaintOut(l,k:integer;Pole_Igroka:TImage);  // Отметка краев корабля после уничтожения
+var i,j:integer; // i- высота j- длина
+begin
+  for i:=(((k*kl+1)+(k*kl+kl-1))div 2)-2 to(((k*kl+1)+(k*kl+kl-1))div 2)+2 do
+    for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+      Pole_Igroka.Canvas.Pixels[i,j]:=cKorabl;
+end;
+Procedure PaintIn(l,k,color:integer;Pole_Igroka:Timage);  // Метка убитого или подбитого корабля
+var i,j:integer; // i- высота j- длина
+begin
+  for i:=k*kl+1 to k*kl+kl-1 do
+    for j:=l*kl+1 to l*kl+kl-1 do
+      Pole_Igroka.Canvas.Pixels[i,j]:= color;
+end;
+procedure ShutStat(l,k:integer);
+var i,j,p,q:integer; // i- высота j- длина
+    max:real;
+begin
+  Case strg of
+    1:begin
+        y:=l;
+        z:=k;
+      end;
+    2:begin
+        p:=l;
+        q:=k;
+        max:=D[l,k];
+        for i:=0 to 9 do
+          for j:=0 to 9 do
+            if (D[i,j]>max) and  Free(i,j) then
+                begin
+                  p:=i;
+                  q:=j;
+                  max:=D[i,j];
+                end;
+        y:=p;
+        z:=q;
+        //showmessage(inttostr(y)+' '+inttostr(z));
+      end;
+   end;
+end;
+procedure ShutThrough(Pole_Igroka:TImage;var f:boolean); // Отака компьютера
+var k,l:integer; // k- длина, l- высота
+begin
+  f:=True;
+  Repeat
+    l:=Random(10);
+    k:=Random(10);
+  until Free(l,k) and CanBe(l,k);
+  ShutStat(l,k);
+  //ShowMessage(IntToStr(A[l,k]));
+      begin
+        if A[y,z]>0 then
+            begin
+              pp:=pp+1;
+              kp:=kp+1;
+              state:=2;
+              ds1:=ds1+1;
+              C[y,z]:=-A[y,z];
+              if A[y,z]=1 then
+                  begin
+                    Ds[1]:=Ds[1]-1;
+                    state:=1;
+                    C[y,z]:=-1;
+                    C[y,z+1]:=-5;
+                    C[y,z-1]:=-5;
+                    C[y-1,z]:=-5;
+                    C[y+1,z]:=-5;
+                    C[y-1,z+1]:=-5;
+                    C[y+1,z+1]:=-5;
+                    C[y-1,z+1]:=-5;
+                    C[y-1,z-1]:=-5;
+                    PaintOut(y-1,z,Pole_Igroka);
+                    PaintOut(y-1,z-1,Pole_Igroka);
+                    PaintOut(y-1,z+1,Pole_Igroka);
+                    PaintOut(y,z-1,Pole_Igroka);
+                    PaintOut(y,z+1,Pole_Igroka);
+                    PaintOut(y+1,z,Pole_Igroka);
+                    PaintOut(y+1,z-1,Pole_Igroka);
+                    PaintOut(y+1,z+1,Pole_Igroka);
+                    PaintIn(y,z,cKill,Pole_Igroka);
+                  end
+                 else PaintIn(y,z,cPodbit,Pole_Igroka);
+            end
+           else
+            begin
+              C[y,z]:=-5;
+              PaintOut(y,z,Pole_Igroka);
+              f:=False;
+            end;
+      end;
+end;
+procedure ShutAround(Pole_Igroka:TImage;var f:boolean;var i:integer);   // Проврка вокруг
+var pf:boolean;
+begin
+  //ShowMessage(IntToStr(i));
+  pf:=False;
+  Repeat
+  Case i of
+    1: if ((y-1)>=0)and (C[y-1,z]=0) then pf:=True else i:=2;
+    2: if ((z+1)<=9)and (C[y,z+1]=0) then pf:=True else i:=3;
+    3: if ((y+1)<=9)and (C[y+1,z]=0) then pf:=True else i:=4;
+    4: if ((z-1)>=0)and (C[y,z-1]=0) then pf:=True else i:=1;
+  end;
+  until pf;
+
+  Case i of
+    1:begin  // 1-й корабль
+        If (A[y-1,z]>0) then
+            begin
+              pp:=pp+1;
+              kp:=kp+1;
+              f:=True;
+              ds1:=ds1+1;
+              C[y-1,z]:=-A[y-1,z];
+              if (A[y-1,z]=2) then
+                  begin
+                    Ds[2]:=Ds[2]-1;
+                    C[y-2,z]:=-5;
+                    C[y-2,z-1]:=-5;
+                    C[y-2,z+1]:=-5;
+                    C[y-1,z-1]:=-5;
+                    C[y-1,z+1]:=-5;
+                    C[y,z-1]:=-5;
+                    C[y,z+1]:=-5;
+                    C[y+1,z]:=-5;
+                    C[y+1,z-1]:=-5;
+                    C[y+1,z+1]:=-5;
+                    state:=1;
+                    PaintIn(y-1,z,cKill,Pole_Igroka);
+                  end
+                 else
+                  begin
+                    state:=3;
+                    PaintIn(y-1,z,cPodbit,Pole_Igroka);
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y-1,z]:=-5;
+              PaintOut(y-1,z,Pole_Igroka);
+            end;
+      end;
+    2:begin // 2-х палубный корабль
+        If (A[y,z+1]>0) then
+            begin
+              pp:=pp+1;
+              kp:=kp+1;
+              f:=True;
+              ds1:=ds1+1;
+              C[y,z+1]:=-A[y,z+1];
+              if (A[y,z+1]=2) then
+                  begin
+                    Ds[2]:=Ds[2]-1;
+                    C[y,z+2]:=-5;
+                    C[y-1,z+2]:=-5;
+                    C[y+1,z+2]:=-5;
+                    C[y-1,z+1]:=-5;
+                    C[y+1,z+1]:=-5;
+                    C[y-1,z]:=-5;
+                    C[y+1,z]:=-5;
+                    C[y,z-1]:=-5;
+                    C[y-1,z-1]:=-5;
+                    C[y+1,z-1]:=-5;
+                    state:=1;
+                    PaintIn(y,z+1,cKill,Pole_Igroka);
+                  end
+                 else
+                  begin
+                    state:=3;
+                    PaintIn(y,z+1,cPodbit,Pole_Igroka);
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y,z+1]:=-5;
+              PaintOut(y,z+1,Pole_Igroka);
+            end;
+      end;
+    3:begin  // 3-х палубный корабль
+        If (A[y+1,z]>0) then
+            begin
+              pp:=pp+1;
+              kp:=kp+1;
+              f:=True;
+              ds1:=ds1+1;
+              C[y+1,z]:=-A[y+1,z];
+              if (A[y+1,z]=2) then
+                  begin
+                    Ds[2]:=Ds[2]-1;
+                    C[y+2,z]:=-5;
+                    C[y+2,z-1]:=-5;
+                    C[y+2,z+1]:=-5;
+                    C[y+1,z-1]:=-5;
+                    C[y+1,z+1]:=-5;
+                    C[y,z-1]:=-5;
+                    C[y,z+1]:=-5;
+                    C[y-1,z]:=-5;
+                    C[y-1,z-1]:=-5;
+                    C[y-1,z+1]:=-5;
+                    state:=1;
+                    PaintIn(y+1,z,cKill,Pole_Igroka);
+                  end
+                 else
+                  begin
+                    state:=3;
+                    PaintIn(y+1,z,cPodbit,Pole_Igroka);
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y+1,z]:=-5;
+              PaintOut(y+1,z,Pole_Igroka);
+            end;
+      end;
+    4:begin // 4-х палубный корабль
+        If (A[y,z-1]>0) then
+            begin
+              pp:=pp+1;
+              kp:=kp+1;
+              f:=True;
+              ds1:=ds1+1;
+              C[y,z-1]:=-A[y,z-1];
+              if (A[y,z-1]=2) then
+                  begin
+                    Ds[2]:=Ds[2]-1;
+                    C[y,z-2]:=-5;
+                    C[y-1,z-2]:=-5;
+                    C[y+1,z-2]:=-5;
+                    C[y-1,z-1]:=-5;
+                    C[y+1,z-1]:=-5;
+                    C[y-1,z]:=-5;
+                    C[y+1,z]:=-5;
+                    C[y,z+1]:=-5;
+                    C[y-1,z+1]:=-5;
+                    C[y+1,z+1]:=-5;
+                    state:=1;
+                    PaintIn(y,z-1,cKill,Pole_Igroka);
+                  end
+                 else
+                  begin
+                    state:=3;
+                    PaintIn(y,z-1,cPodbit,Pole_Igroka);
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y,z-1]:=-5;
+              PaintOut(y,z-1,Pole_Igroka);
+            end;
+      end;
+  end;
+end;
+procedure AroundDead(Pole_Igroka:TImage; var C:mas); // Отметка вокруг уничтоженных кораблей
+var i,j,k,l:integer; // i- высота j- длина, k- длина поля,l- высота поля
+    f:boolean;
+begin
+  for l:=0 to 9 do
+    for k:=0 to 9 do
+      begin
+        f:=False;
+        for i:=(((k*kl+1)+(k*kl+kl-1))div 2)-2 to(((k*kl+1)+(k*kl+kl-1))div 2)+2 do
+          for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+            if (Pole_Igroka.Canvas.Pixels[i,j]=cKorabl) and (Pole_Igroka.Canvas.Pixels[k*kl+1,l*kl+1]<>cKorabl) then f:=True;
+        If f then C[l,k]:=-5;
+      end;
+end;
+procedure ShutAll(Pole_Igroka:TImage;var f:boolean;napr:integer; var C:mas); // Проверка всех кораблей
+begin
+  Case napr of
+    1:begin
+        S:=S+[2,4];
+        if ((y-pp)<0) or (C[y-pp,z]<>0) then napr:=3;
+      end;
+    2:begin
+        S:=S+[1,3];
+        if ((z+pp)>9) or (C[y,z+pp]<>0) then napr:=4;
+      end;
+    3:begin
+        S:=S+[2,4];
+        if ((y+pp)<0) or (C[y+pp,z]<>0) then napr:=1;
+      end;
+    4:begin
+        S:=S+[1,3];
+        if ((z-pp)>9) or (C[y,z-pp]<>0) then napr:=2;
+      end;
+  end;
+  Case napr of
+    1:begin  // 1 палубный корабль
+        if A[y-pp,z]>0 then
+            begin
+              inc(ds1);
+              f:=True;
+              C[y-pp,z]:=-A[y-pp,z];
+              if A[y-pp,z]=kp+1 then
+                  begin
+                    state:=1;
+                    Ds[kp+1]:=Ds[kp+1]-1;
+                  end
+                 else
+                  begin
+                    PaintIn(y-pp,z,cPodbit,Pole_Igroka);
+                    pp:=pp+1;
+                    kp:=kp+1;
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y-pp,z]:=-5;
+              PaintOut(y-pp,z,Pole_Igroka);
+              pp:=1;
+              napr:=3;
+            end;
+      end;
+    2:begin  // 2-х палубный корабль
+        if A[y,z+pp]>0 then
+            begin
+              inc(ds1);
+              f:=True;
+              C[y,z+pp]:=-A[y,z+pp];
+              if A[y,z+pp]=kp+1 then
+                  begin
+                    state:=1;
+                    Ds[kp+1]:=Ds[kp+1]-1;
+                  end
+                 else
+                  begin
+                    PaintIn(y,z+pp,cPodbit,Pole_Igroka);
+                    pp:=pp+1;
+                    kp:=kp+1;
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y,z+pp]:=-5;
+              PaintOut(y,z+pp,Pole_Igroka);
+              pp:=1;
+              napr:=4;
+            end;
+      end;
+    3:begin  // 3-х палубный корабль
+        if A[y+pp,z]>0 then
+            begin
+              f:=True;
+              inc(ds1);
+              C[y+pp,z]:=-A[y+pp,z];
+              if A[y+pp,z]=kp+1 then
+                  begin
+                    state:=1;
+                    Ds[kp+1]:=Ds[kp+1]-1;
+                  end
+                 else
+                  begin
+                    PaintIn(y+pp,z,cPodbit,Pole_Igroka);
+                    pp:=pp+1;
+                    kp:=kp+1;
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y+pp,z]:=-5;
+              PaintOut(y+pp,z,Pole_Igroka);
+              pp:=1;
+              napr:=1;
+            end;
+      end;
+    4:begin  // 4-х палубный корабль
+        if A[y,z-pp]>0 then
+            begin
+              inc(ds1);
+              f:=True;
+              C[y,z-pp]:=-A[y,z-pp];
+              if A[y,z-pp]=kp+1 then
+                  begin
+                    state:=1;
+                    Ds[kp+1]:=Ds[kp+1]-1;
+                  end
+                 else
+                  begin
+                    PaintIn(y,z-pp,cPodbit,Pole_Igroka);
+                    pp:=pp+1;
+                    kp:=kp+1;
+                  end;
+            end
+           else
+            begin
+              f:=False;
+              C[y,z-pp]:=-5;
+              PaintOut(y,z-pp,Pole_Igroka);
+              pp:=1;
+              napr:=2;
+            end;
+      end;
+  end;
+end;
+procedure nullMas();  // Пустое поле
+var i,j:integer;  // i- высота j- длина
+begin
+// Заливка воды
+  for i:=0 to wh do
+   for j:=0 to wh do
+     begin
+       Ekran_Igri.Pole_Igroka.Canvas.Pixels[i,j]:=cMore;
+       Ekran_Igri.Pole_Komputera.Canvas.Pixels[i,j]:=cMore;
+     end;
+   // Выделение периметра
+  for j:=0 to wh do
+    begin
+      Ekran_Igri.Pole_Igroka.Canvas.Pixels[j,0]:=cSetka;
+      Ekran_Igri.Pole_Igroka.Canvas.Pixels[0,j]:=cSetka;
+
+      Ekran_Igri.Pole_Komputera.Canvas.Pixels[j,0]:=cSetka;
+      Ekran_Igri.Pole_Komputera.Canvas.Pixels[0,j]:=cSetka;
+
+      Ekran_Igri.Pole_Igroka.Canvas.Pixels[j,wh-1]:=cSetka;
+      Ekran_Igri.Pole_Igroka.Canvas.Pixels[wh-1,j]:=cSetka;
+
+      Ekran_Igri.Pole_Komputera.Canvas.Pixels[j,wh-1]:=cSetka;
+      Ekran_Igri.Pole_Komputera.Canvas.Pixels[wh-1,j]:=cSetka;
+    end;
+  // Вывод клеток
+  i:=kl;
+  While i<=wh do
+    begin
+      For j:=1 to wh do
+        begin
+          Ekran_Igri.Pole_Igroka.Canvas.Pixels[i,j]:=cSetka;
+          Ekran_Igri.Pole_Komputera.Canvas.Pixels[i,j]:=cSetka;
+          Ekran_Igri.Pole_Igroka.Canvas.Pixels[j,i]:=cSetka;
+          Ekran_Igri.Pole_Komputera.Canvas.Pixels[j,i]:=cSetka;
+        end;
+      i:=i+kl;
+    end;
+end;
+procedure newGame();  // Новая игра
+var i,j:integer; // i- высота j- длина
+begin
+
+  nol:=true;
+  for i:=0 to 9 do
+    for j:=0 to 9 do
+      D[i,j]:=0;
+
+  InitMas(A,B,C);
+  GetB(B);
+  ds1:=0;
+  ds2:=0;
+  S:=[];
+  o:=1;
+  pp:=2;
+  nullMas();
+  Ekran_Igri.Novaya_igra_v_konce.Visible:=false;
+  Ekran_Igri.Pole_Komputera.visible:=false;
+  Ekran_Igri.Komputer_name.visible:=false;
+  Ekran_Igri.Panel_s_obozn.visible:=false;
+  Ekran_Igri.Vash_Hod.Visible:=False;
+  Ekran_Igri.Obozn_kletok.Visible:=False;
+
+  Ekran_Igri.rb1.Enabled:=true;
+  Ekran_Igri.rb2.Enabled:=true;
+  Ekran_Igri.rb3.Enabled:=true;
+  Ekran_Igri.rb4.Enabled:=true;
+  Ekran_Igri.rb4.Checked:=True;
+  strg:=1;
+
+  Ekran_Igri.Pole_Igroka.Enabled:=True;
+ if nol then
+    begin
+  Ekran_Igri.Panel_Rasstanovki.Visible:=True;
+  Ekran_Igri.Rastavit_Zanovo.Visible:=True;
+  Ekran_Igri.Nachat_igru_v_rastanovke.Visible:=True;
+  Ekran_Igri.Nachat_igru_v_rastanovke.Enabled:=False;
+  Ekran_Igri.Panel_Rasstanovki.Enabled:=True;
+  end;
+end;
+procedure TEkran_Igri.FormActivate(Sender: TObject); // Активация программы
+begin
+cKill := rgb(230, 57, 57  );   // Цвет убитого корабля
+cPodbit := rgb(247, 181, 49);  // Цвет подбитого корабля
+cSetka := rgb(1, 2, 84);  // Цвет  сетки
+cMore := rgb(79, 224, 240);  // Цвет игравого поля
+cKorabl := clTeal;  // Цвет корабля
+
+Pole_Komputera.visible:=false;
+Komputer_name.visible:=false;
+Obozn_kletok.Visible:=false;
+Ekran_Igri.Komputer_name.visible:=false;
+  wh := Pole_Igroka.Width;
+  kl:=wh div 10;
+  Obozn_podbit.Brush.Color:=cPodbit;
+  Obozn_unichtogen.Brush.Color:=cKill;
+  Obozn_korabla.Brush.Color:=cKorabl;
+  Vertek.Brush.Color:=cKorabl;
+  Gorizont.Brush.Color:=cKorabl;
+  Obozn_mimo1.Brush.Color:=cMore;
+  Obozn_mimo2.Brush.Color:=cKorabl;
+  newGame();
+end;
+procedure TEkran_Igri.Novaya_igra_v_konceClick(Sender: TObject); // Новая игра в конце игры
+begin
+    newGame();
+end;
+procedure TEkran_Igri.Nazad_na_GlavEkrClick(Sender: TObject); //Переход назад на главную форму
+begin
+ Glavn_ekran.show;
+ Ekran_Igri.hide;
+end;
+procedure TEkran_Igri.Zavershit_igruClick(Sender: TObject); //Закрытие игрового экрана
+begin
+ Glavn_ekran.show;
+ Ekran_Igri.hide;
+end;
+procedure TEkran_Igri.Pole_IgrokaMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); // Расстановка кораблей
+var i,j,k,l,t,d:integer; // i- высота j- длина, k- длина поля,l- высота поля, d- компоненты(доступность)
+begin
+   k:=X div kl;
+   l:=Y div kl;
+   d:=3;
+   If rb4.Checked then d:=3; // 4-х палубный корабль
+   If rb3.Checked then d:=2; // 3-х палубный корабль
+   If rb2.Checked then d:=1; // 2-х палубный корабль
+   If rb1.Checked then d:=0; // 1 палубный корабль
+   // выбор положения корабля
+   If Vibor_Gorizont.Checked then  // горизонтальное положение
+       begin
+         if check1(k,l,d,1,A)and check2(k,l,d,1)and check3(d) then
+             begin
+               for i:=k*kl+1 to (k+d)*kl+kl-1 do
+                 for j:=l*kl+1 to l*kl+kl-1 do
+                   if Pole_Igroka.Canvas.Pixels[i,j]<>cSetka then Pole_Igroka.Canvas.Pixels[i,j]:=cKorabl;
+
+               for t:=k to k+d do A[l,t]:=d+1;
+               p:=p+1;
+               dec(Sh[d+1]);
+               if Sh[d+1]=0 then
+                   Case d of
+                     0:rb1.Enabled:=False; // 4-х палубный корабль
+                     1:rb2.Enabled:=False; // 3-х палубный корабль
+                     2:rb3.Enabled:=False; // 2-х палубный корабль
+                     3:rb4.Enabled:=False; // 1 палубный корабль
+                   end;
+             end;
+       end
+      else
+         begin  //вертикальное положение
+           if check1(k,l,d,2,A)and check2(k,l,d,2)and check3(d) then
+               begin
+                 for i:=k*kl+1 to k*kl+kl-1 do
+                   for j:=l*kl+1 to (l+d)*kl+kl-1 do
+                     if Pole_Igroka.Canvas.Pixels[i,j]<>cSetka then Pole_Igroka.Canvas.Pixels[i,j]:=cKorabl;
+
+                 for t:=l to l+d do A[t,k]:=d+1;
+
+                 p:=p+1;
+                 dec(Sh[d+1]);
+                 if Sh[d+1]=0 then
+                   Case d of
+                     0:rb1.Enabled:=False; // 4-х палубный корабль
+                     1:rb2.Enabled:=False; // 3-х палубный корабль
+                     2:rb3.Enabled:=False; // 2-х палубный корабль
+                     3:rb4.Enabled:=False; // 1 палубный корабль
+                   end;
+               end;
+         end;
+    If p=10 then Nachat_igru_v_rastanovke.Enabled:=True; // количество кораблей
+end;
+procedure TEkran_Igri.bbReClick(Sender: TObject); // Раставить заново
+begin
+  nullMas();
+  InitMas(A,A,C);
+
+  Pole_Igroka.Enabled:=True;
+  rb1.Enabled:=True;
+  rb2.Enabled:=True;
+  rb3.Enabled:=True;
+  rb4.Enabled:=True;
+  rb4.Checked:=True;
+  Nachat_igru_v_rastanovke.Enabled:=False;
+end;
+procedure TEkran_Igri.Nachat_igru_v_rastanovkeClick(Sender: TObject); // Начать играть
+begin
+  Pole_Komputera.visible:=true;
+  Panel_s_Vash_Hod.visible:=true;
+  Komputer_name.visible:=true;
+  Obozn_kletok.Visible:=True;
+  Novaya_igra_v_konce.Visible:=True;
+  Panel_s_obozn.Visible:=True;
+  Panel_Rasstanovki.Visible:=False;
+  Rastavit_Zanovo.Visible:=False;
+  Pole_Komputera.Enabled:=True;
+  Nazad_na_GlavEkr.Visible:=False;
+  Vash_Hod.Visible:=True;
+  flag:=true;
+  Nachat_igru_v_rastanovke.Visible:=False;
+  state:=1;
+end;
+procedure TEkran_Igri.Pole_KomputeraMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);  // Атака на вражеское поле
+var k,l,i,j:integer; // i- высота j- длина, k- длина поля, l- высота поля
+    puf:boolean; // puf- выстрел
+    xRepeat,yRepeat:integer; // xRepeat,yRepeat- координаты на существ корабля
+begin
+  k:=X div kl;
+  l:=Y div kl;
+  xRepeat:=k*kl+(kl div 2);
+  yRepeat:=l*kl+(kl div 2);
+  //ShowMessage('['+IntToStr(xRepeat)+','+IntToStr(yRepeat)+']');
+  if (Pole_Komputera.Canvas.Pixels[xRepeat,yRepeat] = cMore) then
+  Case mru(k,l,B) of
+    0: begin
+         for i:=(((k*kl+1)+(k*kl+kl-1))div 2)-2 to(((k*kl+1)+(k*kl+kl-1))div 2)+2 do
+           for j:=(((l*kl+1)+(l*kl+kl-1))div 2)-2 to(((l*kl+1)+(l*kl+kl-1))div 2)+2 do
+             Pole_Komputera.Canvas.Pixels[i,j]:=cKorabl;
+         puf:=True;
+         Repeat
+          //ShowMessage(IntToStr(state)+' state');
+           Case state of
+             1: begin
+                  pp:=0;  // ранен
+                  kp:=0;  // убит
+                  ShutThrough(Pole_Igroka,puf);
+                end;
+             2: begin
+                  if not (1 in S) then o:=1
+                     else
+                      if not (2 in S) then o:=2
+                         else
+                          if not (3 in S) then o:=3
+                             else
+                              if not (4 in S) then o:=4;
+                  ShutAround(Pole_Igroka,puf,o);
+                  S:=S+[o];
+                  If S=[1,2,3,4] then S:=[];
+                end;
+             3: begin
+                  S:=[];
+                  napr:=o;
+                  ShutAll(Pole_Igroka,puf,napr,C);
+                  //ShowMessage(IntToStr(pp)+' pp'+IntToStr(kp)+' kp');
+                end;
+           end;
+           FindDead(3,C,Pole_Igroka);  // уничтоженные корабли игрока
+           FindDead(2,C,Pole_Igroka);
+           FindDead(1,C,Pole_Igroka);
+           AroundDead(Pole_Igroka,C);
+          // Showmessage(inttostr(ds1));
+         until (not puf) or ((ds1=20)or(ds2=20));
+       end;
+    1: begin
+         inc(ds2);
+         for i:=k*kl+1 to k*kl+kl-1 do
+           for j:=l*kl+1 to l*kl+kl-1 do
+             if B[l,k]>1 then Pole_Komputera.Canvas.Pixels[i,j]:=cPodbit
+                else Pole_Komputera.Canvas.Pixels[i,j]:=cKill;
+         B[l,k]:=-B[l,k];
+         FindDead(3,B,Pole_Komputera);  // уничтоженные корабли компьютера
+         FindDead(2,B,Pole_Komputera);
+         FindDead(1,B,Pole_Komputera);
+         FindDead(0,B,Pole_Komputera);
+       end;
+  end;
+  If ds1=20 // кол-во баллов компьютера
+    then
+     begin
+       FindDead(3,C,Pole_Igroka);
+       FindDead(2,C,Pole_Igroka);
+       FindDead(1,C,Pole_Igroka);
+       showmessage('Победил - компьтер');               //Победа компьютера
+       //newGame();
+       Novaya_igra_v_konce.Visible:=true;
+       Panel_s_Vash_Hod.visible:=false;
+       Pole_Komputera.Enabled:=false;
+     end;
+  If ds2=20 // кол-во баллов игрока
+    then
+     begin
+       showmessage('Победил - '+Igrok_name.Caption);                  //Победа игрока
+       //newGame();
+       Novaya_igra_v_konce.Visible:=true;
+       Panel_s_Vash_Hod.visible:=false;
+       Pole_Komputera.Enabled:=false;
+     end;
+end;
+procedure TEkran_Igri.N8Click(Sender: TObject); // Закрытие через меню
+begin
+  Ekran_Igri.Close;
+end;
+procedure TEkran_Igri.N2Click(Sender: TObject); // Новая игра через меню
+begin
+    newGame();
+end;
+end.
